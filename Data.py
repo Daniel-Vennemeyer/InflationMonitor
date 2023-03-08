@@ -2,7 +2,7 @@ import sqlite3
 from flask_restful import Resource
 import json
 
-class Data(Resource):
+class Data(Resource): # Gets the data from our sqlite database that all nostr relay goes through
 
     def get(self):
         try:

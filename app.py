@@ -4,8 +4,6 @@ import Data
 import json
 # POST Request
 import requests
- 
-url = "http://3.133.141.64:46637/graphql"
 
 
 app = Flask(__name__)
@@ -18,28 +16,31 @@ def hello_world():
 	return 'Hello World!'
             
 @app.route('/cleaned')
-def cleaner():
-    #   data, response_code = Data.Data.get()
-    data = [["{\"id\":\"2da28fdfb8d55a2c97d8e8ee41773eb5fc87297b90d42a3e95cac06875c52f48\",\"pubkey\":\"f38aef9a9a6fadc53fd17fe8e8caed9ed77571c527df223d69cdb48f85e9989a\",\"created_at\":1677969607,\"kind\":1,\"tags\":[],\"content\":\"#inflationMonitor\\n#Diet Coke\\n#Denver, CO\\n#3.49\",\"sig\":\"4d7c5aa610abf00e18941b360ab2d0dfaaa8db18020a44023972aea877effe084c91c7021078daaa7cb204c5bb2d8ac4b0a1fe34ce9e525eed2bc3e5244dcb6d\"}"]]
-    for event in data[0]:
-        event = json.loads(event)
-        item, location, price = event['content'].split("#")[1:]
+def cleaner(): #Get just the values for the data from the nostr relay
+    data = requests.get(url="http://3.144.27.94:5000/data").text #calls our data endpoint from this api running in our aws ec2 instance
+    data = data.replace("\n", "")
+    data = json.loads(data)
+    cleaned = []
+    for event in data:
+        item, location, price = event[0].split("#")[2:]
 
-        item.replace("\n", "")
-        location.replace("\n", "")
-        price.replace("\n", "")
-    ...
+        item = item.replace("\\n", "").replace("'", "").replace('"', "")
+        location = location.replace("\\n", "").replace("'", "").replace('"', "")
+        price = price.replace("\\n", "").replace(price[price.index(".")+3:], "" ).replace("'", "").replace('"', "")
+        cleaned.append(item, location, price)
+    return cleaned
 
 @app.route('/send')
-def send():
-    data = [["{\"id\":\"2da28fdfb8d55a2c97d8e8ee41773eb5fc87297b90d42a3e95cac06875c52f48\",\"pubkey\":\"f38aef9a9a6fadc53fd17fe8e8caed9ed77571c527df223d69cdb48f85e9989a\",\"created_at\":1677969607,\"kind\":1,\"tags\":[],\"content\":\"#inflationMonitor\\n#Diet Coke\\n#Denver, CO\\n#3.49\",\"sig\":\"4d7c5aa610abf00e18941b360ab2d0dfaaa8db18020a44023972aea877effe084c91c7021078daaa7cb204c5bb2d8ac4b0a1fe34ce9e525eed2bc3e5244dcb6d\"}"]]
-    for event in data[0]:
-        event = json.loads(event)
-        item, location, price = event['content'].split("#")[1:]
+def send(): #sends the data from the nostr relay's default sqlite database to our ComposeDB with only the information and formatting we want
+    data = requests.get(url="http://3.144.27.94:5000/data").text #get data from our nostr relay's sqlite database
+    data = json.loads(data)
+    for event in data:
+        item, location, price = event[0].split("#")[2:] #extracts and cleans nostr data
 
-        item.replace("\n", "")
-        location.replace("\n", "")
-        price.replace("\n", "")
+        item = item.replace("\\n", "").replace("'", "").replace('"', "")
+        location = location.replace("\\n", "").replace("'", "").replace('"', "")
+        price = float(price.replace("\\n", "").replace(price[price.index(".")+3:], "" ).replace("'", "").replace('"', "")) # data is clean
+        
         body = """
         mutation CreatePriceData($i:CreatePriceDataInput!){
             createPriceData(input: $i){
@@ -47,12 +48,13 @@ def send():
                     item
                     location
                     price
+                }
+            }
         }
-    }
-    }
         """
         
-        response = requests.post(url=url, json={"query": body, "variables": 
+        url = "http://3.144.27.94:36593/graphql" #url for graphql editor running in our aws ec2 instance
+        response = requests.post(url=url, json={"query": body, "variables":  #posts to our composedb
             {
             "i":
                     {"content": {
@@ -62,6 +64,7 @@ def send():
                     }
             }
         }})
+
         print("response status code: ", response.status_code)
         if response.status_code == 200:
             print("response : ",response.content)
@@ -70,5 +73,4 @@ def send():
 
 if __name__ == '__main__':
     # send()
-    #  cleaner()
     app.run(host='127.0.0.1', port=5000)

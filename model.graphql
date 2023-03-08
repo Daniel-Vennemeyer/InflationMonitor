@@ -1,0 +1,5 @@
+type PriceData @createModel(accountRelation: SINGLE, description: "pricing data point") {
+    item: String! @string(maxLength: 100)
+    location: String! @string(maxLength: 200)
+    price: Float! @string(maxLength: 100)
+}
